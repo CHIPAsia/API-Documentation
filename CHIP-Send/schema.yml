@@ -1,0 +1,1016 @@
+openapi: 3.0.0
+servers:
+  - description: Production
+    url: https://api.chip-in.asia/api/
+  - description: Sandbox
+    url: https://staging-api.chip-in.asia/api/
+info:
+  description: |
+    There is two (2) server for you to choose where it is **Sandbox** or **Production**. Depending on the environment, the endpoints will vary. 
+  
+    You will need your **API Key** that you can obtain in the CHIP Send Dashboard. Please use this key as a bearer token in the Authorization header included in every request: `Authorization: Bearer <API Key>`.
+    
+    Since this API is meant for performing high risk task such as sending payments, extra security measure has to be in place. Hence, you also need **API Secret** to sign the request that you made. This keys will never leave your server and shall be stored securely. For every request, you will need to include **epoch** that contains Unix time and **checksum** that contains hash for epoch signed with API Secret in every request header.
+  
+    ***
+  
+    # Checksum
+  
+    Note: The epoch time must be less than 30 seconds from the current request and at least greater than current time.
+    
+    The checksum needs to be generated with string `<epoch time><api key>` with SHA512 and sign with API Secret. As an example, epoch with value `1678778690`, API Secret with value `a118729e-4243-4145-83b3-0b8cb213fe8e`, API Key with value `b489b4fd-3f85-48c1-a204-6ce656d8bc1e` will generate a checksum before signing with value `1678778690a118729e-4243-4145-83b3-0b8cb213fe8e` and a checksum after signing with value `6853156f9c3d8675ae4d1faaee1b0e77e3f12df93c756707a8a648912f449ed3b1415a1a158076af790e1765c06ba7348b2543357409b3a796768581d70976be`.
+    
+    ***
+  version: "1.0.0"
+  title: CHIP Send API
+  termsOfService: https://www.chip-in.asia/terms-of-service
+  contact:
+    name: CHIP Control
+    url: https://www.chip-in.asia/control
+tags:
+  - name: Company Send Instruction
+    description: To manage payment instructions
+  - name: Company Bank Account
+    description: To manage bank account that will be used for sending payments
+  - name: Group
+    description: To manage grouping to group company bank account
+  - name: Webhook
+    description: To manage webhook events for server-to-server notification
+paths:
+  "/company_send_instructions/":
+    get:
+      operationId: company_send_instructions_index
+      description: |
+        This to get a list of previously create company send instructions records. 
+
+        Do noted that this request will get cached where it will only be refreshed every one hour.
+
+      summary: Get Company Send Instructions Index
+      tags:
+        - Company Send Instruction
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: id
+          in: query
+          schema:
+            type: integer
+        - name: company_bank_account_id
+          in: query
+          schema:
+            type: integer
+        - name: state
+          in: query
+          schema:
+            allOf:
+            - $ref: '#/components/schemas/CompanySendInstructionState'
+        - name: reference
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/CompanySendInstruction'
+    post:
+      operationId: company_send_instructions_create
+      description: |
+        This to send transfer instruction.
+      summary: Send Payment Instructions
+      tags:
+        - Company Send Instruction
+      parameters:
+        - name: company_bank_account_id
+          in: query
+          required: true
+          schema:
+            type: integer
+            example: 1
+        - name: amount
+          required: true
+          in: query
+          schema:
+            allOf:
+            - $ref: '#/components/schemas/PaymentAmount'
+        - name: email
+          required: true
+          in: query
+          schema:
+            type: string
+            format: email
+            example: email@chip-in.asia
+        - name: description
+          in: query
+          schema:
+            type: string
+            maximum: 255
+            nullable: true
+            example: Example Description
+        - name: reference
+          in: query
+          schema:
+            type: string
+            maximum: 255
+            example: null
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanySendInstruction'
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotFoundResponse'
+        '422':
+          description: Invalid response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvalidResponse'
+  "/company_send_instructions/{id}/":
+    get:
+      operationId: company_send_instructions_get
+      description: |
+        This to get transfer instruction by ID.
+      summary: Get Payment Instructions By ID
+      tags:
+        - Company Send Instruction
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: Successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanySendInstruction'
+    delete:
+      operationId: company_send_instructions_delete
+      description: |
+        This to delete transfer instruction.
+      summary: Delete Payment Instructions
+      tags:
+        - Company Send Instruction
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            example: 8
+      responses:
+        '200':
+          description: Successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanySendInstruction'
+              example:
+                id: 8
+                company_bank_account_id: 2
+                amount: 7.10
+                state: deleted
+                email: email@chip-in.asia
+                description: null
+                reference: null
+                created_at: 1619740800
+                updated_at: 1619740801
+  "/company_send_instructions/{reference_id}/":
+    get:
+      operationId: company_send_instructions_get_by_reference_id
+      description: |
+        This to get transfer instruction by Reference ID. This is alternative to get transfer instruction.
+        
+        If you need to be sure that your system is not trigger company_send_instructions twice, you may call this API first with your own Reference ID. This eliminates the needs of human intervention in the event of the system failed to store the response during company_send_instructions creation.
+      summary: Get Payment Instructions By Reference ID
+      tags:
+        - Company Send Instruction
+      parameters:
+        - name: reference_id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: CH001
+      responses:
+        '200':
+          description: Successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanySendInstruction'
+              example:
+                id: 1
+                company_bank_account_id: 1
+                amount: 18.22
+                state: received
+                email: email@chip-in.asia
+                description: "Example Description"
+                reference: CH001
+                created_at: 1619740800
+                updated_at: 1619740800
+  "/company_bank_accounts/":
+    get:
+      operationId: company_bank_accounts_index
+      description: |
+        This to get a list of previously created company bank accounts records. 
+
+        Do noted that this request will get cached where it will only be refreshed every one hour.
+
+      summary: Get Company Bank Accounts Index
+      tags:
+        - Company Bank Account
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: group_id
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            allOf:
+            - $ref: '#/components/schemas/CompanyBankAccountStatus'
+        - name: reference
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CompanyBankAccount'
+    post:
+      operationId: company_bank_accounts_create
+      description: |
+        This to create company bank account for verification.
+      summary: Create Company Bank Account
+      tags:
+        - Company Bank Account
+      parameters:
+        - name: group_id
+          in: query
+          schema:
+            type: integer
+        - name: reference
+          in: query
+          schema:
+            type: string
+        - name: account_number
+          in: query
+          schema:
+            type: string
+            minimum: 10
+            maximum: 17
+            example: 157380112222
+        - name: bank_code
+          in: query
+          schema:
+            $ref: '#/components/schemas/BankCode'
+        - name: name
+          in: query
+          schema:
+            type: string
+            example: Ahmad
+      responses:
+        '200':
+          description: Successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyBankAccount'
+  "/company_bank_accounts/{id}/":
+    get:
+      operationId: company_bank_accounts_get
+      description: |
+        This to get company bank account.
+      summary: Get Company Bank Account
+      tags:
+        - Company Bank Account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            example: 22
+      responses:
+        '200':
+          description: Successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyBankAccount'
+              example:
+                id: 22
+                status: verified
+                account_number: 157380112222
+                bank_code: MBBEMYKL
+                group_id: null
+                name: Ahmad
+                reference: null
+                created_at: 1619740800
+                updated_at: 1619740800
+                deleted_at: null
+    delete:
+      operationId: company_bank_accounts_delete
+      description: |
+        This to delete company bank account.
+      summary: Delete Company Bank Account
+      tags:
+        - Company Bank Account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            example: 22
+      responses:
+        '200':
+          description: Successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyBankAccount'
+              example:
+                id: 22
+                status: verified
+                account_number: 157380112222
+                bank_code: MBBEMYKL
+                group_id: null
+                name: Ahmad
+                reference: null
+                created_at: 1619740800
+                updated_at: 1619740801
+                deleted_at: 1619740801
+  "/company_bank_accounts/{reference_id}/":
+    get:
+      operationId: company_bank_accounts_get_by_reference_id
+      description: |
+        This to get bank account by Reference ID. This is alternative to get bank account.
+        
+        If you need to be sure that your system is not trigger company_bank_accounts twice, you may call this API first with your own Reference ID. This eliminates the needs of human intervention in the event of the system failed to store the response during company_bank_accounts creation.
+      summary: Get Company Bank Account By Reference ID
+      tags:
+        - Company Bank Account
+      parameters:
+        - name: reference_id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: CBA001
+      responses:
+        '200':
+          description: Successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyBankAccount'
+              example:
+                id: 23
+                status: verified
+                account_number: 157380112222
+                bank_code: MBBEMYKL
+                group_id: null
+                name: Ahmad
+                reference: CBA001
+                created_at: 1619740800
+                updated_at: 1619740800
+                deleted_at: null
+  "/groups/":
+    get:
+      operationId: groups_index
+      description: |
+        This to get a list of previously create groups records. 
+
+        Do noted that this request will get cached where it will only be refreshed every one hour.
+
+      summary: Get Groups Index
+      tags:
+        - Group
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Group'
+                    example:
+                      - id: 2
+                        name: "Second Group"
+                        created_at: 1619740800
+                        updated_at: 1619740800
+                      - id: 3
+                        name: "Third Group"
+                        created_at: 1619740801
+                        updated_at: 1619740801
+    post:
+      operationId: groups_create
+      description: |
+        This to create group.
+      summary: Create Group
+      tags:
+        - Group
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+            example: First Group
+      responses:
+        '200':
+          description: Successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+              example:
+                id: 1
+                name: First Group
+                created_at: 1619740800
+                updated_at: 1619740800
+  "/groups/{id}/":
+    get:
+      operationId: groups_get
+      description: |
+        This to get group.
+      summary: Get Group
+      tags:
+        - Group
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: Successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+              example:
+                id: 1
+                name: First Group
+                created_at: 1619740800
+                updated_at: 1619740800
+    delete:
+      operationId: groups_delete
+      description: |
+        This to delete group.
+      summary: Delete Group
+      tags:
+        - Group
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: Successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+              example:
+                id: 1
+                name: First Group
+                created_at: 1619740800
+                updated_at: 1619740801
+    patch:
+      operationId: groups_patch
+      description: |
+        This to patch group.
+      summary: Patch Group
+      tags:
+        - Group
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            example: 1
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+            example: First edited group
+      responses:
+        '200':
+          description: Successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+              example: 
+                id: 1
+                name: First edited group
+                created_at: 1619740800
+                updated_at: 1619740801
+  "/webhooks/":
+    get:
+      operationId: webhooks_index
+      description: |
+        This to get a list of previously create webhooks records. 
+
+        Do noted that this request will get cached where it will only be refreshed every one hour.
+
+      summary: Get Webhooks Index
+      tags:
+        - Webhook
+      parameters:
+        - name: name
+          in: query
+          schema:
+            type: string
+        - name: email
+          in: query
+          schema:
+            type: string
+            format: email
+        - name: callback_url
+          in: query
+          schema:
+            allOf:
+            - $ref: '#/components/schemas/URL'
+        - name: event_hook
+          in: query
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Event'
+      responses:
+        '200':
+          description: Successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Webhook'
+                    example:
+                      - id: 1
+                        name: First Webhook
+                        public_key: "-----BEGIN PUBLIC KEY-----\nMIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEA6gLlBKxCB5dxPJbinCzl\nhOfKSgQtOWQQBxmnWIkEVUbqhpnqr3xNYiAvDyMUxYUwuzN44eHO+mR9MZWcSx3c\nbXmKa3gsOzR6GdcOxMGaVxvfje+fujCAlCtO1BP+A9/FS3KcPgCYG1wtAPwA5IAf\nHylL3TsUVIJQFBgiBr6N4Bgapr9eloaFfeYIBRsXmxPKAMJivqxYpLh0V3N4ZFd5\nTGqSEAa4b1ULDr6p0sB2L3QikTdsF0zp03zNceKA6fXDOzD0xWtg9buXvyKwePK4\nM2kcnWBNfsWghrdg0fG3O9bmkaS1oEXydrmJfuiI8h6a64J/1nzooi2yLC9D6Ta0\nS63bbuAHymnQtiNuV7Ixp6IoTGFaS88aTiHaP8rdyWV8JTDFx0qeDzyaGWiYGwEF\nmj/buHCEcRhoajbGkPhYA4YEdn4jy1wZhEr2OMdBPM7mPPI0Hy3hcNJVMVVlrpHe\nIltQATpjlNaJMlRPjbcaiW7dsO3BuF9ZOMGksSOnyYm/AgMBAAE=\n-----END PUBLIC KEY-----"
+                        callback_url": https://yourwebsite.com/route
+                        email: user@example.com
+                        event_hooks: [ "company_bank_account_status"]
+                        created_at: 16197408
+                        updated_at: 16197408
+    post:
+      operationId: webhooks_create
+      description: |
+        This to create webhook.
+      summary: Create Webhook
+      tags:
+        - Webhook
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+            example: First Webhook
+        - name: callback_url
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/URL'
+        - name: email
+          in: query
+          required: true
+          schema:
+            type: string
+            example: email@chip-in.asia
+            format: email
+        - name: event_hooks
+          in: query
+          required: true
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/Event'
+            example:
+              - company_bank_account_status
+              - company_send_instruction_status
+      responses:
+        '200':
+          description: Successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Webhook'
+              example:
+                - id: 1
+                  name: First Webhook
+                  public_key: "-----BEGIN PUBLIC KEY-----\nMIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEA6gLlBKxCB5dxPJbinCzl\nhOfKSgQtOWQQBxmnWIkEVUbqhpnqr3xNYiAvDyMUxYUwuzN44eHO+mR9MZWcSx3c\nbXmKa3gsOzR6GdcOxMGaVxvfje+fujCAlCtO1BP+A9/FS3KcPgCYG1wtAPwA5IAf\nHylL3TsUVIJQFBgiBr6N4Bgapr9eloaFfeYIBRsXmxPKAMJivqxYpLh0V3N4ZFd5\nTGqSEAa4b1ULDr6p0sB2L3QikTdsF0zp03zNceKA6fXDOzD0xWtg9buXvyKwePK4\nM2kcnWBNfsWghrdg0fG3O9bmkaS1oEXydrmJfuiI8h6a64J/1nzooi2yLC9D6Ta0\nS63bbuAHymnQtiNuV7Ixp6IoTGFaS88aTiHaP8rdyWV8JTDFx0qeDzyaGWiYGwEF\nmj/buHCEcRhoajbGkPhYA4YEdn4jy1wZhEr2OMdBPM7mPPI0Hy3hcNJVMVVlrpHe\nIltQATpjlNaJMlRPjbcaiW7dsO3BuF9ZOMGksSOnyYm/AgMBAAE=\n-----END PUBLIC KEY-----"
+                  callback_url": https://yourwebsite.com/route
+                  email: email@chip-in.asia
+                  event_hooks: [ "company_bank_account_status", "company_send_instruction_status"]
+                  created_at: 16197408
+                  updated_at: 16197408
+  "/webhooks/{id}/":
+    get:
+      operationId: webhooks_get
+      description: |
+        This to get webhook.
+      summary: Get Webhook
+      tags:
+        - Webhook
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: Successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Webhook'
+              example:
+                - id: 1
+                  name: First Webhook
+                  public_key: "-----BEGIN PUBLIC KEY-----\nMIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEA6gLlBKxCB5dxPJbinCzl\nhOfKSgQtOWQQBxmnWIkEVUbqhpnqr3xNYiAvDyMUxYUwuzN44eHO+mR9MZWcSx3c\nbXmKa3gsOzR6GdcOxMGaVxvfje+fujCAlCtO1BP+A9/FS3KcPgCYG1wtAPwA5IAf\nHylL3TsUVIJQFBgiBr6N4Bgapr9eloaFfeYIBRsXmxPKAMJivqxYpLh0V3N4ZFd5\nTGqSEAa4b1ULDr6p0sB2L3QikTdsF0zp03zNceKA6fXDOzD0xWtg9buXvyKwePK4\nM2kcnWBNfsWghrdg0fG3O9bmkaS1oEXydrmJfuiI8h6a64J/1nzooi2yLC9D6Ta0\nS63bbuAHymnQtiNuV7Ixp6IoTGFaS88aTiHaP8rdyWV8JTDFx0qeDzyaGWiYGwEF\nmj/buHCEcRhoajbGkPhYA4YEdn4jy1wZhEr2OMdBPM7mPPI0Hy3hcNJVMVVlrpHe\nIltQATpjlNaJMlRPjbcaiW7dsO3BuF9ZOMGksSOnyYm/AgMBAAE=\n-----END PUBLIC KEY-----"
+                  callback_url": https://yourwebsite.com/route
+                  email: email@chip-in.asia
+                  event_hooks: [ "company_bank_account_status", "company_send_instruction_status"]
+                  created_at: 16197408
+                  updated_at: 16197408
+    delete:
+      operationId: webhooks_delete
+      description: |
+        This to delete webhook.
+      summary: Delete Webhook
+      tags:
+        - Webhook
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: Successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Webhook'
+              example:
+                - id: 1
+                  name: First Webhook
+                  public_key: "-----BEGIN PUBLIC KEY-----\nMIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEA6gLlBKxCB5dxPJbinCzl\nhOfKSgQtOWQQBxmnWIkEVUbqhpnqr3xNYiAvDyMUxYUwuzN44eHO+mR9MZWcSx3c\nbXmKa3gsOzR6GdcOxMGaVxvfje+fujCAlCtO1BP+A9/FS3KcPgCYG1wtAPwA5IAf\nHylL3TsUVIJQFBgiBr6N4Bgapr9eloaFfeYIBRsXmxPKAMJivqxYpLh0V3N4ZFd5\nTGqSEAa4b1ULDr6p0sB2L3QikTdsF0zp03zNceKA6fXDOzD0xWtg9buXvyKwePK4\nM2kcnWBNfsWghrdg0fG3O9bmkaS1oEXydrmJfuiI8h6a64J/1nzooi2yLC9D6Ta0\nS63bbuAHymnQtiNuV7Ixp6IoTGFaS88aTiHaP8rdyWV8JTDFx0qeDzyaGWiYGwEF\nmj/buHCEcRhoajbGkPhYA4YEdn4jy1wZhEr2OMdBPM7mPPI0Hy3hcNJVMVVlrpHe\nIltQATpjlNaJMlRPjbcaiW7dsO3BuF9ZOMGksSOnyYm/AgMBAAE=\n-----END PUBLIC KEY-----"
+                  callback_url": https://yourwebsite.com/route
+                  email: email@chip-in.asia
+                  event_hooks: [ "company_bank_account_status", "company_send_instruction_status"]
+                  created_at: 16197408
+                  updated_at: 16197409
+    patch:
+      operationId: webhooks_patch
+      description: |
+        This to patch webhook.
+      summary: Patch Webhook
+      tags:
+        - Webhook
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            example: 1
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+            example: First Webhook Edited
+      responses:
+        '200':
+          description: Successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Webhook'
+              example:
+                - id: 1
+                  name: First Webhook Edited
+                  public_key: "-----BEGIN PUBLIC KEY-----\nMIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEA6gLlBKxCB5dxPJbinCzl\nhOfKSgQtOWQQBxmnWIkEVUbqhpnqr3xNYiAvDyMUxYUwuzN44eHO+mR9MZWcSx3c\nbXmKa3gsOzR6GdcOxMGaVxvfje+fujCAlCtO1BP+A9/FS3KcPgCYG1wtAPwA5IAf\nHylL3TsUVIJQFBgiBr6N4Bgapr9eloaFfeYIBRsXmxPKAMJivqxYpLh0V3N4ZFd5\nTGqSEAa4b1ULDr6p0sB2L3QikTdsF0zp03zNceKA6fXDOzD0xWtg9buXvyKwePK4\nM2kcnWBNfsWghrdg0fG3O9bmkaS1oEXydrmJfuiI8h6a64J/1nzooi2yLC9D6Ta0\nS63bbuAHymnQtiNuV7Ixp6IoTGFaS88aTiHaP8rdyWV8JTDFx0qeDzyaGWiYGwEF\nmj/buHCEcRhoajbGkPhYA4YEdn4jy1wZhEr2OMdBPM7mPPI0Hy3hcNJVMVVlrpHe\nIltQATpjlNaJMlRPjbcaiW7dsO3BuF9ZOMGksSOnyYm/AgMBAAE=\n-----END PUBLIC KEY-----"
+                  callback_url": https://yourwebsite.com/route
+                  email: email@chip-in.asia
+                  event_hooks: [ "company_bank_account_status", "company_send_instruction_status"]
+                  created_at: 16197408
+                  updated_at: 16197410
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    CompanySendInstruction:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        company_bank_account_id:
+          type: integer
+          format: int64
+          example: 1
+        amount:
+          allOf:
+            - $ref: '#/components/schemas/PaymentAmount'
+        state:
+          readOnly: true
+          allOf:
+            - $ref: '#/components/schemas/CompanySendInstructionState'
+        email:
+          type: string
+          format: email
+          example: email@chip-in.asia
+        description:
+          type: string
+          example: Example Description
+        reference:
+          type: string
+          nullable: true
+          description: Can be any value, including `null`.
+          example: null
+        created_at:
+          readOnly: true
+          description: Object creation time
+          allOf:
+            - $ref: '#/components/schemas/UnixTimestamp'
+        updated_at:
+          readOnly: true
+          description: Object updated time
+          allOf:
+            - $ref: '#/components/schemas/UnixTimestamp'
+      description: This is company send instructions schema
+    CompanyBankAccount:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        status:
+          example: "verified"
+          allOf:
+            - $ref: '#/components/schemas/CompanyBankAccountStatus'
+        account_number:
+          type: string
+          minimum: 10
+          maximum: 17
+          example: 157380112222
+        bank_code:
+          allOf:
+            - $ref: '#/components/schemas/BankCode'
+        group_id:
+          type: integer
+          nullable: true
+          example: null
+        name:
+          type: string
+          example: Ahmad
+        reference:
+          type: string
+          nullable: true
+          example: null
+        created_at:
+          readOnly: true
+          description: Object creation time
+          allOf:
+            - $ref: '#/components/schemas/UnixTimestamp'
+        updated_at:
+          readOnly: true
+          description: Object creation time
+          allOf:
+            - $ref: '#/components/schemas/UnixTimestamp'
+        deleted_at:
+          readOnly: true
+          description: Object creation time
+          allOf:
+            - $ref: '#/components/schemas/UnixTimestamp'
+    Group:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+          minimum: 1
+          maximum: 256
+        created_at:
+          readOnly: true
+          description: Object creation time
+          allOf:
+            - $ref: '#/components/schemas/UnixTimestamp'
+        updated_at:
+          readOnly: true
+          description: Object creation time
+          allOf:
+            - $ref: '#/components/schemas/UnixTimestamp'
+    Webhook:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        name:
+          type: string
+          minimum: 1
+          maximum: 256
+        public_key:
+          readOnly: true
+          allOf:
+            - $ref: '#/components/schemas/PublicKey'
+        callback_url:
+          allOf:
+            - $ref: '#/components/schemas/URL'
+        email:
+          type: string
+          format: email
+        event_hooks:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          description: List of events to trigger webhook callbacks for.
+          items:
+            $ref: '#/components/schemas/Event'  
+        created_at:
+          readOnly: true
+          description: Object creation time
+          allOf:
+            - $ref: '#/components/schemas/UnixTimestamp'
+        updated_at:
+          readOnly: true
+          description: Object creation time
+          allOf:
+            - $ref: '#/components/schemas/UnixTimestamp'
+    UnixTimestamp:
+      type: integer
+      format: Unix timestamp (seconds)
+      example: 1619740800
+    BankCode:
+      type: string
+      example: MBBEMYKL
+      description: |
+        - `PHBMMYKL`: Affin Bank Berhad
+        - `AIBBMYKL`: Affin Islamic Bank Berhad
+        - `BPMBMYKL`: AGROBANK / BANK PERTANIAN MALAYSIA BERHAD
+        - `MFBBMYKL`: Alliance Bank Malaysia Berhad
+        - `ALSRMYK1`: Alliance Islamic Bank Malaysia Berhad
+        - `RJHIMYKL`: AL RAJHI BANKING & INVESTMENT CORPORATION (MALAYSIA) BERHAD
+        - `ARBKMYKL`: AmBank (M) Berhad
+        - `AISLMYKL`: AmIslamic Bank (M) Berhad
+        - `BIMBMYKL`: Bank Islam Malaysia Berhad
+        - `BKRMMYKL`: Bank Kerjasama Rakyat Malaysia Berhad
+        - `BMMBMYKL`: Bank Muamalat (Malaysia) Berhad
+        - `BSNAMYK1`: Bank Simpanan Nasional Berhad
+        - `CIBBMYKL`: CIMB Bank Berhad
+        - `CTBBMYKL`: CIMB Islamic Bank Berhad
+        - `CITIMYKL`: Citibank Berhad
+        - `HLBBMYKL`: Hong Leong Bank Berhad
+        - `HLIBMYKL`: Hong Leong Islamic Bank Berhad
+        - `HBMBMYKL`: HSBC Bank Malaysia Berhad
+        - `HMABMYKL`: HSBC Amanah Malaysia Berhad
+        - `KFHOMYKL`: Kuwait Finance House
+        - `MBBEMYKL`: Maybank / Malayan Banking Berhad
+        - `MBISMYKL`: Maybank Islamic Berhad
+        - `OCBCMYKL`: OCBC Bank (Malaysia) Berhad
+        - `OABBMYKL`: OCBC Al-Amin Bank Berhad
+        - `PBBEMYKL`: Public Bank Berhad
+        - `PIBEMYK1`: Public Islamic Bank Berhad
+        - `RHBBMYKL`: RHB Bank Berhad
+        - `RHBAMYKL`: RHB Islamic Bank Berhad
+        - `SCBLMYKX`: Standard Chartered Bank (Malaysia) Berhad
+        - `UOVBMYKL`: United Overseas Bank (Malaysia) Berhad
+        - `AFBQMYKL`: MBSB BANK BERHAD
+      enum: [PHBMMYKL, AIBBMYKL, BPMBMYKL, MFBBMYKL, ALSRMYK1, RJHIMYKL, ARBKMYKL, AISLMYKL, BIMBMYKL, BKRMMYKL, BMMBMYKL, BSNAMYK1, CIBBMYKL, CTBBMYKL, CITIMYKL, HLBBMYKL, HLIBMYKL, HBMBMYKL, HMABMYKL, KFHOMYKL, MBBEMYKL, MBISMYKL, OCBCMYKL, OABBMYKL, PBBEMYKL, PIBEMYK1, RHBBMYKL, RHBAMYKL, SCBLMYKX, UOVBMYKL, AFBQMYKL]
+    PublicKey:
+      type: string
+      description: PEM-encoded RSA public key for authenticating webhook or callback payloads
+      readOnly: true
+      example: |-
+        -----BEGIN PUBLIC KEY-----
+        MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEA6gLlBKxCB5dxPJbinCzl
+        hOfKSgQtOWQQBxmnWIkEVUbqhpnqr3xNYiAvDyMUxYUwuzN44eHO+mR9MZWcSx3c
+        bXmKa3gsOzR6GdcOxMGaVxvfje+fujCAlCtO1BP+A9/FS3KcPgCYG1wtAPwA5IAf
+        HylL3TsUVIJQFBgiBr6N4Bgapr9eloaFfeYIBRsXmxPKAMJivqxYpLh0V3N4ZFd5
+        TGqSEAa4b1ULDr6p0sB2L3QikTdsF0zp03zNceKA6fXDOzD0xWtg9buXvyKwePK4
+        M2kcnWBNfsWghrdg0fG3O9bmkaS1oEXydrmJfuiI8h6a64J/1nzooi2yLC9D6Ta0
+        S63bbuAHymnQtiNuV7Ixp6IoTGFaS88aTiHaP8rdyWV8JTDFx0qeDzyaGWiYGwEF
+        mj/buHCEcRhoajbGkPhYA4YEdn4jy1wZhEr2OMdBPM7mPPI0Hy3hcNJVMVVlrpHe
+        IltQATpjlNaJMlRPjbcaiW7dsO3BuF9ZOMGksSOnyYm/AgMBAAE=
+        -----END PUBLIC KEY-----
+    URL:
+      type: string
+      format: url
+      example: https://yourwebsite.com/route
+      maxLength: 500
+    Event:
+      type: string
+      description: |-
+        Available event types and when they are emitted:
+
+        `company_bank_account_status`: Emitted when a Company Bank Account status changed. This happens as a result of CHIP processing the company bank account for verification.
+
+        ---
+
+        `company_send_instruction_status`: Emitted when a Company Send Instructions status changed. This happens as a result of CHIP processing the company send instruction with the banks.
+
+        ---
+      enum: [company_bank_account_status, company_send_instruction_status]
+    CompanySendInstructionState:
+      type: string
+      enum: [received, enquiring, executing, reviewing, completed, deleted]
+    PaymentAmount:
+      type: string
+      pattern: ^[0-9]{1,}\.{0,1}[0-9]{0,2}$
+      description: Amount in floating point with maximum of 2 decimal places.
+      example: 12.44
+    InvalidResponse:
+      type: object
+      properties:
+        message:
+          type: array
+          items:
+            type: string
+            enum: ["Email is invalid"]
+    NotFoundResponse:
+      type: object
+      properties:
+        message:
+          type: array
+          items:
+            type: string
+            enum: ["Record not found", "Company Bank Account not found"]
+    CompanyBankAccountStatus:
+      type: string
+      enum: 
+        - pending
+        - verified
+        - rejected
+security:
+  - bearerAuth: []
