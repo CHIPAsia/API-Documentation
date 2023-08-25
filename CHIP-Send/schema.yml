@@ -6,20 +6,20 @@ servers:
     url: https://staging-api.chip-in.asia/api/
 info:
   description: |
-    There is two (2) server for you to choose where it is **Sandbox** or **Production**. Depending on the environment, the endpoints will vary. 
-  
+    There is two (2) server for you to choose where it is **Sandbox** or **Production**. Depending on the environment, the endpoints will vary.
+
     You will need your **API Key** that you can obtain in the CHIP Send Dashboard. Please use this key as a bearer token in the Authorization header included in every request: `Authorization: Bearer <API Key>`.
-    
+
     Since this API is meant for performing high risk task such as sending payments, extra security measure has to be in place. Hence, you also need **API Secret** to sign the request that you made. This keys will never leave your server and shall be stored securely. For every request, you will need to include **epoch** that contains Unix time and **checksum** that contains hash for epoch signed with API Secret in every request header.
-  
+
     ***
-  
+
     # Checksum
-  
+
     Note: The epoch time must be less than 30 seconds from the current request and at least greater than current time.
-    
+
     The checksum needs to be generated with string `<epoch time><api key>` with SHA512 and sign with API Secret. As an example, epoch with value `1678778690`, API Secret with value `a118729e-4243-4145-83b3-0b8cb213fe8e`, API Key with value `b489b4fd-3f85-48c1-a204-6ce656d8bc1e` will generate a checksum before signing with value `1678778690a118729e-4243-4145-83b3-0b8cb213fe8e` and a checksum after signing with value `6853156f9c3d8675ae4d1faaee1b0e77e3f12df93c756707a8a648912f449ed3b1415a1a158076af790e1765c06ba7348b2543357409b3a796768581d70976be`.
-    
+
     ***
   version: "1.0.0"
   title: CHIP Send API
@@ -28,48 +28,388 @@ info:
     name: CHIP Control
     url: https://www.chip-in.asia/control
 tags:
-  - name: Company Send Instruction
-    description: To manage payment instructions
-  - name: Company Bank Account
+  - name: Accounts
+    description: This is an API to get CHIP Send account information. Depending on your account agreement, you may only have one account.
+  - name: Send Limits
+    description: |
+      Send Limit records incoming (coverted from collection - transaction_type: in) and outgoing (send to recipient - transaction_type: out) transactions in CHIP Send.
+
+      To be able to send funds to third parties, you must have balance in your CHIP Send Account. Use Increase Send Limit API to covert settlement (collection) amount to Send Limit.
+
+      Please note in Staging / UAT environment, your convertible collection amount is set to MYR 1,000.00. In Production, it will reflect your actual upcoming settlement amount.
+  - name: Bank Account
     description: To manage bank account that will be used for sending payments
+  - name: Send Instruction
+    description: To manage payment instructions
   - name: Group
     description: To manage grouping to group company bank account
   - name: Webhook
     description: To manage webhook events for server-to-server notification
 paths:
-  "/company_send_instructions/":
+  "/accounts/":
     get:
-      operationId: company_send_instructions_index
+      operationId: accounts_index
       description: |
-        This to get a list of previously create company send instructions records. 
+        Use this endpoint to know:-
 
-        Do noted that this request will get cached where it will only be refreshed every one hour.
+        1. Your available settlement (collection) amount that can be converted to CHIP Send Limit.
+        2. Current balance
+        3. Send Fee
+        4. Account Verification Fee
+        5. No. of approvals required to convert collection balance to CHIP Send Limit
 
-      summary: Get Company Send Instructions Index
+      summary: Get Accounts
       tags:
-        - Company Send Instruction
+        - Accounts
+      security:
+        - bearerAuth: []
       parameters:
+        - name: epoch
+          in: header
+          description: Unix epoch timestamps
+          required: true
+          schema:
+            type: string
+            format: Unix timestamp (seconds)
+        - name: checksum
+          in: header
+          description: Refer to Checksum Calculation
+          required: true
+          schema:
+            type: string
+
+      responses:
+        '200':
+          description: Successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Account'
+
+  "/send_limits/":
+    get:
+      operationId: send_limits_index
+      description: |
+        This is to get the CHIP Send send limit.
+      summary: Get Send Limits
+      tags:
+        - Send Limits
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: epoch
+          in: header
+          description: Unix epoch timestamps
+          required: true
+          schema:
+            type: string
+            format: Unix timestamp (seconds)
+        - name: checksum
+          in: header
+          description: Refer to Checksum Calculation
+          required: true
+          schema:
+            type: string
+
+      responses:
+        '200':
+          description: Successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SendLimit'
+    post:
+      operationId: send_limits_create
+      description: |
+        This to increase your CHIP Send Limit by converting upcoming settlement amount. Once triggered, all approvers will receive an email to approve the conversion.
+
+        Please note that all Send LImit increase requests must be approved before 12AM everyday. At 12AM, pending requests will set as expired.
+      summary: Increase Send Limit
+      tags:
+        - Send Limits
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: epoch
+          in: header
+          description: Unix epoch timestamps
+          required: true
+          schema:
+            type: string
+            format: Unix timestamp (seconds)
+        - name: checksum
+          in: header
+          description: Refer to Checksum Calculation
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IncreaseSendLimit'
+
+      responses:
+        '200':
+          description: Successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SendLimit'
+              example:
+                id: 2
+                currency: "MYR"
+                fee_type: "flat"
+                transaction_type: "in"
+                amount: 200
+                fee: 0
+                net_amount: 200
+                from_settlement: "2023-07-21"
+                status: "pending"
+                approvals_required: 0
+                approvals_received: 0
+                created_at: "2023-08-25T02:50:46.519Z"
+                updated_at: "2023-08-25T02:50:46.519Z"
+  "/bank_accounts/":
+    get:
+      operationId: bank_accounts_index
+      description: |
+        This is for managing bank account details..
+
+      summary: Get Bank Accounts
+      tags:
+        - Bank Account
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: epoch
+          in: header
+          description: Unix epoch timestamps
+          required: true
+          schema:
+            type: string
+            format: Unix timestamp (seconds)
+        - name: checksum
+          in: header
+          description: Refer to Checksum Calculation
+          required: true
+          schema:
+            type: string
+
         - name: page
           in: query
           schema:
             type: integer
-        - name: id
+            example: 1
+            description: This to navigate index. Optional
+        - name: limit
           in: query
           schema:
             type: integer
-        - name: company_bank_account_id
+            default: 25
+            description: Limit records per page. Default 25. Optional
+        - name: status
           in: query
           schema:
-            type: integer
-        - name: state
-          in: query
-          schema:
+            example: "verified"
             allOf:
-            - $ref: '#/components/schemas/CompanySendInstructionState'
+            - $ref: '#/components/schemas/BankAccountStatus'
+            description: This to filter based on status. Possible value is pending, verified, rejected.Optional
         - name: reference
           in: query
           schema:
             type: string
+            example: "abc123"
+            description: This to filter based on reference. Optional
+      responses:
+        '200':
+          description: Successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BankAccount'
+    post:
+      operationId: company_bank_accounts_create
+      description: |
+        This is for registering a bank account. It is only required ONCE before Create Send Instruction.
+      summary: Create Bank Account
+      tags:
+        - Bank Account
+      parameters:
+        - name: epoch
+          in: header
+          description: Unix epoch timestamps
+          required: true
+          schema:
+            type: string
+            format: Unix timestamp (seconds)
+        - name: checksum
+          in: header
+          description: Refer to Checksum Calculation
+          required: true
+          schema:
+            type: string
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBankAccount'
+
+      responses:
+        '200':
+          description: Successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankAccount'
+  "/bank_accounts/{id}/":
+    get:
+      operationId: bank_account_get
+      description: |
+        This is for getting a specific bank account details.
+      summary: Get Bank Account
+      tags:
+        - Bank Account
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: epoch
+          in: header
+          description: Unix epoch timestamps
+          required: true
+          schema:
+            type: string
+            format: Unix timestamp (seconds)
+        - name: checksum
+          in: header
+          description: Refer to Checksum Calculation
+          required: true
+          schema:
+            type: string
+
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            example: 22
+      responses:
+        '200':
+          description: Successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankAccount'
+              example:
+                id: 22
+                status: verified
+                account_number: 157380112222
+                bank_code: MBBEMYKL
+                group_id: null
+                name: Ahmad
+                reference: null
+                created_at: 1619740800
+                is_debiting_account: false
+                is_crediting_account: false
+                updated_at: 1619740800
+                deleted_at: null
+                rejected_reason: null
+    delete:
+      operationId: bank_accounts_delete
+      description: |
+        This is for deleting a bank account details to prevent future payment with Create Send Instruction.
+      summary: Delete Bank Account
+      tags:
+        - Bank Account
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: epoch
+          in: header
+          description: Unix epoch timestamps
+          required: true
+          schema:
+            type: string
+            format: Unix timestamp (seconds)
+        - name: checksum
+          in: header
+          description: Refer to Checksum Calculation
+          required: true
+          schema:
+            type: string
+
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            example: 84
+      responses:
+        '200':
+          description: Successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankAccount'
+              example:
+                id: 84
+                status: verified
+                account_number: 157380112222
+                bank_code: MBBEMYKL
+                group_id: null
+                name: Ahmad
+                reference: null
+                created_at: 1619740800
+                is_debiting_account: false
+                is_crediting_account: false
+                updated_at: 1619740801
+                deleted_at: 1619740801
+  "/send_instructions/":
+    get:
+      operationId: send_instructions_index
+      description: |
+        This to get a list of previously create company send instructions records.
+
+        Do noted that this request will get cached where it will only be refreshed every one hour.
+
+      summary: Get Send Instructions
+      tags:
+        - Send Instruction
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: epoch
+          in: header
+          description: Unix epoch timestamps
+          required: true
+          schema:
+            type: string
+            format: Unix timestamp (seconds)
+        - name: checksum
+          in: header
+          description: Refer to Checksum Calculation
+          required: true
+          schema:
+            type: string
+
       responses:
         '200':
           description: Successful response
@@ -82,75 +422,90 @@ paths:
                     type: array
                     items:
                       allOf:
-                        - $ref: '#/components/schemas/CompanySendInstruction'
+                        - $ref: '#/components/schemas/SendInstruction'
     post:
-      operationId: company_send_instructions_create
+      operationId: send_instructions_create
       description: |
-        This to send transfer instruction.
+        This is for creating send instruction. A call to this endpiont will deduct your account available balance and credit it to receiver bank account.
       summary: Send Payment Instructions
       tags:
-        - Company Send Instruction
+        - Send Instruction
+      security:
+        - bearerAuth: []
       parameters:
-        - name: company_bank_account_id
-          in: query
+        - name: epoch
+          in: header
+          description: Unix epoch timestamps
           required: true
           schema:
-            type: integer
-            example: 1
-        - name: amount
+            type: string
+            format: Unix timestamp (seconds)
+        - name: checksum
+          in: header
+          description: Refer to Checksum Calculation
           required: true
-          in: query
-          schema:
-            allOf:
-            - $ref: '#/components/schemas/PaymentAmount'
-        - name: email
-          required: true
-          in: query
           schema:
             type: string
-            format: email
-            example: email@chip-in.asia
-        - name: description
-          in: query
-          schema:
-            type: string
-            maximum: 255
-            nullable: true
-            example: Example Description
-        - name: reference
-          in: query
-          schema:
-            type: string
-            maximum: 255
-            example: null
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSendInstruction'
+
       responses:
         '200':
           description: Successful response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CompanySendInstruction'
+                $ref: '#/components/schemas/SendInstruction'
+        '400':
+          description: Balance not enough
+          content:
+            application/json:
+              example:
+                message: "Balance not enough. Please increase your Send Limit"
         '404':
           description: Resource not found
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/NotFoundResponse'
+              example:
+                message: "Company Bank Account not found or its still pending verification state"
         '422':
           description: Invalid response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/InvalidResponse'
-  "/company_send_instructions/{id}/":
+  "/send_instructions/{id}/":
     get:
-      operationId: company_send_instructions_get
+      operationId: send_instructions_get
       description: |
         This to get transfer instruction by ID.
       summary: Get Payment Instructions By ID
       tags:
-        - Company Send Instruction
+        - Send Instruction
+      security:
+        - bearerAuth: []
       parameters:
+        - name: epoch
+          in: header
+          description: Unix epoch timestamps
+          required: true
+          schema:
+            type: string
+            format: Unix timestamp (seconds)
+        - name: checksum
+          in: header
+          description: Refer to Checksum Calculation
+          required: true
+          schema:
+            type: string
+
         - name: id
           in: path
           required: true
@@ -163,15 +518,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CompanySendInstruction'
+                $ref: '#/components/schemas/SendInstruction'
     delete:
-      operationId: company_send_instructions_delete
+      operationId: send_instructions_delete
       description: |
         This to delete transfer instruction.
       summary: Delete Payment Instructions
       tags:
-        - Company Send Instruction
+        - Send Instruction
+      security:
+        - bearerAuth: []
       parameters:
+        - name: epoch
+          in: header
+          description: Unix epoch timestamps
+          required: true
+          schema:
+            type: string
+            format: Unix timestamp (seconds)
+        - name: checksum
+          in: header
+          description: Refer to Checksum Calculation
+          required: true
+          schema:
+            type: string
+
         - name: id
           in: path
           required: true
@@ -184,10 +555,10 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CompanySendInstruction'
+                $ref: '#/components/schemas/SendInstruction'
               example:
                 id: 8
-                company_bank_account_id: 2
+                bank_account_id: 2
                 amount: 7.10
                 state: deleted
                 email: email@chip-in.asia
@@ -195,225 +566,11 @@ paths:
                 reference: null
                 created_at: 1619740800
                 updated_at: 1619740801
-  "/company_send_instructions/{reference_id}/":
-    get:
-      operationId: company_send_instructions_get_by_reference_id
-      description: |
-        This to get transfer instruction by Reference ID. This is alternative to get transfer instruction.
-        
-        If you need to be sure that your system is not trigger company_send_instructions twice, you may call this API first with your own Reference ID. This eliminates the needs of human intervention in the event of the system failed to store the response during company_send_instructions creation.
-      summary: Get Payment Instructions By Reference ID
-      tags:
-        - Company Send Instruction
-      parameters:
-        - name: reference_id
-          in: path
-          required: true
-          schema:
-            type: string
-            example: CH001
-      responses:
-        '200':
-          description: Successful
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CompanySendInstruction'
-              example:
-                id: 1
-                company_bank_account_id: 1
-                amount: 18.22
-                state: received
-                email: email@chip-in.asia
-                description: "Example Description"
-                reference: CH001
-                created_at: 1619740800
-                updated_at: 1619740800
-  "/company_bank_accounts/":
-    get:
-      operationId: company_bank_accounts_index
-      description: |
-        This to get a list of previously created company bank accounts records. 
-
-        Do noted that this request will get cached where it will only be refreshed every one hour.
-
-      summary: Get Company Bank Accounts Index
-      tags:
-        - Company Bank Account
-      parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-        - name: group_id
-          in: query
-          schema:
-            type: integer
-        - name: status
-          in: query
-          schema:
-            allOf:
-            - $ref: '#/components/schemas/CompanyBankAccountStatus'
-        - name: reference
-          in: query
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Successful
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  results:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/CompanyBankAccount'
-    post:
-      operationId: company_bank_accounts_create
-      description: |
-        This to create company bank account for verification.
-      summary: Create Company Bank Account
-      tags:
-        - Company Bank Account
-      parameters:
-        - name: group_id
-          in: query
-          schema:
-            type: integer
-        - name: reference
-          in: query
-          schema:
-            type: string
-        - name: account_number
-          in: query
-          schema:
-            type: string
-            minimum: 10
-            maximum: 17
-            example: 157380112222
-        - name: bank_code
-          in: query
-          schema:
-            $ref: '#/components/schemas/BankCode'
-        - name: name
-          in: query
-          schema:
-            type: string
-            example: Ahmad
-      responses:
-        '200':
-          description: Successful
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CompanyBankAccount'
-  "/company_bank_accounts/{id}/":
-    get:
-      operationId: company_bank_accounts_get
-      description: |
-        This to get company bank account.
-      summary: Get Company Bank Account
-      tags:
-        - Company Bank Account
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-            example: 22
-      responses:
-        '200':
-          description: Successful
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CompanyBankAccount'
-              example:
-                id: 22
-                status: verified
-                account_number: 157380112222
-                bank_code: MBBEMYKL
-                group_id: null
-                name: Ahmad
-                reference: null
-                created_at: 1619740800
-                updated_at: 1619740800
-                deleted_at: null
-    delete:
-      operationId: company_bank_accounts_delete
-      description: |
-        This to delete company bank account.
-      summary: Delete Company Bank Account
-      tags:
-        - Company Bank Account
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-            example: 22
-      responses:
-        '200':
-          description: Successful
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CompanyBankAccount'
-              example:
-                id: 22
-                status: verified
-                account_number: 157380112222
-                bank_code: MBBEMYKL
-                group_id: null
-                name: Ahmad
-                reference: null
-                created_at: 1619740800
-                updated_at: 1619740801
-                deleted_at: 1619740801
-  "/company_bank_accounts/{reference_id}/":
-    get:
-      operationId: company_bank_accounts_get_by_reference_id
-      description: |
-        This to get bank account by Reference ID. This is alternative to get bank account.
-        
-        If you need to be sure that your system is not trigger company_bank_accounts twice, you may call this API first with your own Reference ID. This eliminates the needs of human intervention in the event of the system failed to store the response during company_bank_accounts creation.
-      summary: Get Company Bank Account By Reference ID
-      tags:
-        - Company Bank Account
-      parameters:
-        - name: reference_id
-          in: path
-          required: true
-          schema:
-            type: string
-            example: CBA001
-      responses:
-        '200':
-          description: Successful
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CompanyBankAccount'
-              example:
-                id: 23
-                status: verified
-                account_number: 157380112222
-                bank_code: MBBEMYKL
-                group_id: null
-                name: Ahmad
-                reference: CBA001
-                created_at: 1619740800
-                updated_at: 1619740800
-                deleted_at: null
   "/groups/":
     get:
       operationId: groups_index
       description: |
-        This to get a list of previously create groups records. 
+        This to get a list of previously create groups records.
 
         Do noted that this request will get cached where it will only be refreshed every one hour.
 
@@ -552,7 +709,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Group'
-              example: 
+              example:
                 id: 1
                 name: First edited group
                 created_at: 1619740800
@@ -561,7 +718,7 @@ paths:
     get:
       operationId: webhooks_index
       description: |
-        This to get a list of previously create webhooks records. 
+        This to get a list of previously create webhooks records.
 
         Do noted that this request will get cached where it will only be refreshed every one hour.
 
@@ -764,14 +921,125 @@ components:
       type: http
       scheme: bearer
   schemas:
-    CompanySendInstruction:
+    Account:
       type: object
       properties:
         id:
           type: integer
           format: int64
           example: 1
-        company_bank_account_id:
+        status:
+          example: "active"
+          allOf:
+            - $ref: '#/components/schemas/SendAccountStatus'
+        currency:
+          type: string
+          example: "MYR"
+        settlement_convert_approvals_count:
+          type: integer
+          example: 1
+        send_fee:
+          type: integer
+          example: 1
+        send_fee_type:
+          type: string
+          example: "flat"
+          allOf:
+            - $ref: '#/components/schemas/FeeType'
+        account_verification_fee:
+          type: integer
+          example: 1
+        account_verification_fee_type:
+          type: string
+          example: "flat"
+          allOf:
+            - $ref: '#/components/schemas/FeeType'
+        convertible_balance_from_statement:
+          type: integer
+          example: 1000
+        current_balance:
+          type: integer
+          example: 100
+        created_at:
+          readOnly: true
+          description: Object creation time
+          type: string
+          format: date-time
+        updated_at:
+          readOnly: true
+          description: Object updated time
+          type: string
+          format: date-time
+
+    SendLimit:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        currency:
+          type: string
+          example: "MYR"
+        fee_type:
+          type: string
+          example: "flat"
+          allOf:
+            - $ref: '#/components/schemas/FeeType'
+        transaction_type:
+          type: string
+          example: "out"
+          allOf:
+            - $ref: '#/components/schemas/TransactionType'
+        amount:
+          type: integer
+          example: 0
+        fee:
+          type: integer
+          example: 1
+        net_amount:
+          type: integer
+          example: -1
+        from_settlement:
+          type: string
+          format: date
+          example: "2023-07-21"
+        status:
+          type: string
+          example: "success"
+          allOf:
+            - $ref: '#/components/schemas/SendLimitStatus'
+        approvals_required:
+          type: integer
+          example: 0
+        approvals_received:
+          type: integer
+          example: 0
+        created_at:
+          readOnly: true
+          description: Object creation time
+          type: string
+          format: date-time
+        updated_at:
+          readOnly: true
+          description: Object updated time
+          type: string
+          format: date-time
+    IncreaseSendLimit:
+      type: object
+      properties:
+        amount:
+          type: integer
+          example: 200.50
+          description: Amount in MYR. Write 200.50 for MYR200.50
+    SendInstruction:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        bank_account_id:
           type: integer
           format: int64
           example: 1
@@ -781,7 +1049,7 @@ components:
         state:
           readOnly: true
           allOf:
-            - $ref: '#/components/schemas/CompanySendInstructionState'
+            - $ref: '#/components/schemas/SendInstructionState'
         email:
           type: string
           format: email
@@ -797,15 +1065,41 @@ components:
         created_at:
           readOnly: true
           description: Object creation time
-          allOf:
-            - $ref: '#/components/schemas/UnixTimestamp'
+          type: string
+          format: date-time
         updated_at:
           readOnly: true
           description: Object updated time
-          allOf:
-            - $ref: '#/components/schemas/UnixTimestamp'
+          type: string
+          format: date-time
       description: This is company send instructions schema
-    CompanyBankAccount:
+    CreateSendInstruction:
+      type: object
+      properties:
+        bank_account_id:
+          nullable: false
+          type: integer
+          example: 1
+        amount:
+          nullable: false
+          allOf:
+            - $ref: '#/components/schemas/PaymentAmount'
+        description:
+          type: string
+          maximum: 255
+          nullable: false
+          example: Example Description
+        email:
+          nullable: false
+          type: string
+          format: email
+          example: email@chip-in.asia
+        reference:
+          nullable: true
+          type: string
+          maximum: 255
+          example: null
+    BankAccount:
       type: object
       properties:
         id:
@@ -815,7 +1109,7 @@ components:
         status:
           example: "verified"
           allOf:
-            - $ref: '#/components/schemas/CompanyBankAccountStatus'
+            - $ref: '#/components/schemas/BankAccountStatus'
         account_number:
           type: string
           minimum: 10
@@ -838,18 +1132,51 @@ components:
         created_at:
           readOnly: true
           description: Object creation time
-          allOf:
-            - $ref: '#/components/schemas/UnixTimestamp'
+          type: string
+          format: date-time
+        is_debiting_account:
+          type: boolean
+          example: false
+        is_crediting_account:
+          type: boolean
+          example: false
         updated_at:
           readOnly: true
           description: Object creation time
-          allOf:
-            - $ref: '#/components/schemas/UnixTimestamp'
+          type: string
+          format: date-time
         deleted_at:
           readOnly: true
           description: Object creation time
+          type: string
+          format: date-time
+        rejected_reason:
+          type: string
+          nullable: true
+          example: null
+    CreateBankAccount:
+      type: object
+      properties:
+        reference:
+          type: string
+          nullable: true
+          example: null
+          description: Unique value to prevent multiple submission. *Optional
+        account_number:
+          nullable: false
+          type: string
+          minimum: 10
+          maximum: 17
+          example: 157380112222
+        bank_code:
+          nullable: false
           allOf:
-            - $ref: '#/components/schemas/UnixTimestamp'
+            - $ref: '#/components/schemas/BankCode'
+          example: "MBBEMYKL"
+        name:
+          nullable: true
+          type: string
+          example: Ahmad
     Group:
       type: object
       properties:
@@ -863,13 +1190,13 @@ components:
         created_at:
           readOnly: true
           description: Object creation time
-          allOf:
-            - $ref: '#/components/schemas/UnixTimestamp'
+          type: string
+          format: date-time
         updated_at:
           readOnly: true
           description: Object creation time
-          allOf:
-            - $ref: '#/components/schemas/UnixTimestamp'
+          type: string
+          format: date-time
     Webhook:
       type: object
       properties:
@@ -897,17 +1224,17 @@ components:
           uniqueItems: true
           description: List of events to trigger webhook callbacks for.
           items:
-            $ref: '#/components/schemas/Event'  
+            $ref: '#/components/schemas/Event'
         created_at:
           readOnly: true
           description: Object creation time
-          allOf:
-            - $ref: '#/components/schemas/UnixTimestamp'
+          type: string
+          format: date-time
         updated_at:
           readOnly: true
           description: Object creation time
-          allOf:
-            - $ref: '#/components/schemas/UnixTimestamp'
+          type: string
+          format: date-time
     UnixTimestamp:
       type: integer
       format: Unix timestamp (seconds)
@@ -982,9 +1309,21 @@ components:
 
         ---
       enum: [company_bank_account_status, company_send_instruction_status]
-    CompanySendInstructionState:
+    SendInstructionState:
       type: string
       enum: [received, enquiring, executing, reviewing, completed, deleted]
+    FeeType:
+      type: string
+      enum: [flat, percentage]
+    TransactionType:
+      type: string
+      enum: [in, out]
+    SendAccountStatus:
+      type: string
+      enum: [active, pending]
+    SendLimitStatus:
+      type: string
+      enum: [success, pending]
     PaymentAmount:
       type: string
       pattern: ^[0-9]{1,}\.{0,1}[0-9]{0,2}$
@@ -1005,12 +1344,9 @@ components:
           type: array
           items:
             type: string
-            enum: ["Record not found", "Company Bank Account not found"]
-    CompanyBankAccountStatus:
+            enum: ["Record not found", "Company Bank Account not found", "Company Bank Account not found or its still pending verification state"]
+    BankAccountStatus:
       type: string
-      enum: 
-        - pending
-        - verified
-        - rejected
+      enum: [pending, verified, rejected]
 security:
   - bearerAuth: []
