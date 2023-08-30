@@ -157,7 +157,7 @@ paths:
 
       responses:
         '200':
-          description: Successful
+          description: Successful response
           content:
             application/json:
               schema:
@@ -221,7 +221,7 @@ paths:
 
       responses:
         '200':
-          description: Successful
+          description: Successful response
           content:
             application/json:
               schema:
@@ -292,7 +292,7 @@ paths:
 
       responses:
         '200':
-          description: Successful
+          description: Successful response
           content:
             application/json:
               schema:
@@ -370,7 +370,7 @@ paths:
             description: This to filter based on reference
       responses:
         '200':
-          description: Successful
+          description: Successful response
           content:
             application/json:
               schema:
@@ -471,7 +471,7 @@ paths:
               name: 'Ahmad Pintu'
       responses:
         '200':
-          description: Successful
+          description: Successful response
           content:
             application/json:
               schema:
@@ -525,7 +525,7 @@ paths:
             format: int64
       responses:
         '200':
-          description: Successful
+          description: Successful response
           content:
             application/json:
               schema:
@@ -577,7 +577,7 @@ paths:
             example: 84
       responses:
         '200':
-          description: Successful
+          description: Successful response
           content:
             application/json:
               schema:
@@ -844,7 +844,7 @@ paths:
             example: 8
       responses:
         '200':
-          description: Successful
+          description: Successful response
           content:
             application/json:
               schema:
@@ -891,7 +891,7 @@ paths:
             format: int64
       responses:
         '200':
-          description: Successful
+          description: Successful response
           content:
             application/json:
               schema:
@@ -939,7 +939,7 @@ paths:
             example: First Group
       responses:
         '200':
-          description: Successful
+          description: Successful response
           content:
             application/json:
               schema:
@@ -980,7 +980,7 @@ paths:
             format: int64
       responses:
         '200':
-          description: Successful
+          description: Successful response
           content:
             application/json:
               schema:
@@ -1020,7 +1020,7 @@ paths:
             format: int64
       responses:
         '200':
-          description: Successful
+          description: Successful response
           content:
             application/json:
               schema:
@@ -1066,7 +1066,7 @@ paths:
             example: First edited group
       responses:
         '200':
-          description: Successful
+          description: Successful response
           content:
             application/json:
               schema:
@@ -1122,7 +1122,7 @@ paths:
               - $ref: '#/components/schemas/Event'
       responses:
         '200':
-          description: Successful
+          description: Successful response
           content:
             application/json:
               schema:
@@ -1192,7 +1192,7 @@ paths:
               - company_send_instruction_status
       responses:
         '200':
-          description: Successful
+          description: Successful response
           content:
             application/json:
               schema:
@@ -1237,7 +1237,7 @@ paths:
             example: 1
       responses:
         '200':
-          description: Successful
+          description: Successful response
           content:
             application/json:
               schema:
@@ -1281,7 +1281,7 @@ paths:
             example: 1
       responses:
         '200':
-          description: Successful
+          description: Successful response
           content:
             application/json:
               schema:
@@ -1331,7 +1331,7 @@ paths:
             example: First Webhook Edited
       responses:
         '200':
-          description: Successful
+          description: Successful response
           content:
             application/json:
               schema:
