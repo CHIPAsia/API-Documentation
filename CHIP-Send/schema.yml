@@ -436,10 +436,6 @@ paths:
     post:
       operationId: bank_accounts_create
       description: |
-        This to increase your CHIP Send Limit by converting upcoming settlement amount. Once triggered, all approvers will receive an email to approve the conversion.
-
-        Please note that all Send LImit increase requests must be approved before 12AM everyday. At 12AM, pending requests will set as expired.
-        
         The ID given in the respone must be stored as it will be used for later process.
       summary: Add Bank Account
       tags:
