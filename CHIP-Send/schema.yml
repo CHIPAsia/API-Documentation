@@ -53,7 +53,7 @@ info:
     
     *Note: epoch time must be less than 30 seconds from the current request and at least greater than current time.*
 
-    Provided an epoch value is `1689826456`, api_key is `1689826456e0645c9e-fcf2-4f29-a327-202f7ed3d969` and api_secret is `a118729e-4243-4145-83b3-0b8cb213fe8e`, both epoch and api_key must be concatenated and sign with HMAC SHA512.
+    Provided an epoch value is `1689826456`, api_key is `e0645c9e-fcf2-4f29-a327-202f7ed3d969` and api_secret is `a118729e-4243-4145-83b3-0b8cb213fe8e`, both epoch and api_key must be concatenated and sign with HMAC SHA512.
 
     The string that must be prepared is:
 
