@@ -667,7 +667,7 @@ paths:
                     created_at: '2023-03-17T08:08:09.283Z'
                     updated_at: '2023-03-17T08:08:09.283Z'
                   - id: 44
-                    company_bank_account_id: 39
+                    bank_account_id: 39
                     amount: '100.00'
                     state: received
                     email: wan@chip-in.asia
@@ -738,7 +738,7 @@ paths:
                 $ref: '#/components/schemas/SendInstruction'
               example: 
                 id: 50
-                company_bank_account_id: 1
+                bank_account_id: 1
                 amount: '100.00'
                 state: completed
                 email: email@gmail.com
@@ -807,7 +807,7 @@ paths:
                 $ref: '#/components/schemas/SendInstruction'
               example: 
                 id: 3
-                company_bank_account_id: 12
+                bank_account_id: 12
                 amount: '100.00'
                 state: received
                 email: wan@chip-in.asia
@@ -857,7 +857,7 @@ paths:
                 $ref: '#/components/schemas/SendInstruction'
               example: 
                 id: 50
-                company_bank_account_id: 1
+                bank_account_id: 1
                 amount: '100.00'
                 state: deleted
                 email: email@gmail.com
@@ -1532,6 +1532,12 @@ components:
     SendInstruction:
       type: object
       description: This is send instructions schema
+      required:
+        - description
+        - reference
+        - company_bank_account_id
+        - amount
+        - email
       properties:
         id:
           type: integer
@@ -1544,6 +1550,13 @@ components:
           format: int64
           example: 1
           description: ID that have been given in [Add Bank Account](#/Bank%20Accounts/bank_accounts_create)
+          writeOnly: true
+        bank_account_id:
+          type: integer
+          format: int64
+          example: 1
+          description: ID that have been given in [Add Bank Account](#/Bank%20Accounts/bank_accounts_create)
+          readOnly: true
         amount:
           allOf:
             - $ref: '#/components/schemas/PaymentAmount'
@@ -1558,12 +1571,12 @@ components:
         description:
           type: string
           example: Example Description
-          maximum: 255
+          maximum: 140
           minimum: 1
           nullable: false
         reference:
           type: string
-          maximum: 255
+          maximum: 40
           minimum: 1
           nullable: false
           description: Can be any value.
@@ -1581,6 +1594,10 @@ components:
     BankAccount:
       type: object
       description: This is bank account schema
+      required: 
+        - account_number
+        - bank_code
+        - name
       properties:
         id:
           type: integer
