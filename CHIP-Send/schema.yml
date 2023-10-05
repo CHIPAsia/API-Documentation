@@ -723,10 +723,10 @@ paths:
             schema:
               $ref: '#/components/schemas/SendInstruction'
             example: 
-              company_bank_account_id: 1
+              bank_account_id: 1
               amount: '100'
               description: test
-              email: email@gmail
+              email: email@gmail.com
               reference: f
 
       responses:
@@ -1537,7 +1537,7 @@ components:
       required:
         - description
         - reference
-        - company_bank_account_id
+        - bank_account_id
         - amount
         - email
       properties:
@@ -1547,18 +1547,11 @@ components:
           example: 1
           description: This ID must be stored for future reference.
           readOnly: true
-        company_bank_account_id:
-          type: integer
-          format: int64
-          example: 1
-          description: ID that have been given in [Add Bank Account](#/Bank%20Accounts/bank_accounts_create)
-          writeOnly: true
         bank_account_id:
           type: integer
           format: int64
           example: 1
           description: ID that have been given in [Add Bank Account](#/Bank%20Accounts/bank_accounts_create)
-          readOnly: true
         amount:
           allOf:
             - $ref: '#/components/schemas/PaymentAmount'
