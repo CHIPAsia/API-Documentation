@@ -1457,6 +1457,8 @@ components:
     SendLimit:
       type: object
       description: This is send limit schema
+      required: 
+        - amount
       properties:
         id:
           type: integer
