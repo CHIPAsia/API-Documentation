@@ -29,7 +29,7 @@ info:
      
      Make sure to use the correct endpoint depending on the environment you're on.
 
-     1. Staging / UAT: [https://staging-api.chip-in.asia/api/](https://staging-api.chip-in.asia/api/)
+     1. Staging: [https://staging-api.chip-in.asia/api/](https://staging-api.chip-in.asia/api/)
      1. Production: [https://api.chip-in.asia/api/](https://api.chip-in.asia/api/)
 
     # Credentials
@@ -92,7 +92,7 @@ info:
     $hmac = hash_hmac( 'sha512', $str, 'a118729e-4243-4145-83b3-0b8cb213fe8e' );
     ```
     
-    # Approving Increase Send Limit requests
+    # Approving Chip Send Budget Allocation requests
     
     Each approver will get an email. To approve, approvers must click the Approve button in the email. Once all approvers approve, the balance will be reflected in [Accounts API](#/Accounts) response.
 
@@ -111,11 +111,11 @@ tags:
     description: |
       Send Limit records incoming (coverted from collection - transaction_type: in) and outgoing (send to recipient - transaction_type: out) transactions in CHIP Send.
 
-      To be able to send funds to third parties, you must have balance in your CHIP Send Account. Use Increase Send Limit API to covert settlement (collection) amount to Send Limit.
+      To be able to send funds to third parties, you must have balance in your CHIP Send Account. Use Increase Chip Send Budget Allocation API to covert settlement (collection) amount to Send Limit.
 
       Please note in Staging / UAT environment, your convertible collection amount is set to MYR 1,000.00. In Production, it will reflect your actual upcoming settlement amount.
   - name: Bank Accounts
-    description: This is for managing bank account details.
+    description: This is an API to manage recipeint bank account details.
   - name: Send Instructions
     description: This is an API to perform a send instructions. This is the main API that you can benefit from CHIP Send.
   - name: Groups
@@ -127,13 +127,22 @@ paths:
     get:
       operationId: accounts_index
       description: |
-        Use this endpoint to know:-
+        Use this endpoint to know:
 
-        1. Your available settlement (collection) amount that can be converted to CHIP Send Limit.
-        1. Current balance
-        1. Send Fee
-        1. Account Verification Fee
+        1. Your available settlement (collection) amount that can be converted to CHIP Send Limit;
+        1. Current balance;
+        1. Send Fee;
+        1. Account Verification Fee;
         1. No. of approvals required to convert collection balance to CHIP Send Limit
+
+        Please note that `convertible_balance_from_statement` will return different data depending on when you hit this endpoint. This adds flexibility and time for you to plan out your CHIP Send Budget Allocation requests, without having to send extra information.
+        
+        For example:
+
+        1. Trigger today at 11.59 PM MYT will return convertible balance from today's collection.
+        1. Trigger tomorrow at 12.00 AM MYT will return convertible balance from today's collection.
+        1. Trigger tomorrow at 11.59 AM MYT will return convertible balance from today's collection.
+        1. Trigger tomorrow at 12.00 PM MYT will return convertible balance from tomorrow's collection.
 
       summary: Get Accounts
       tags:
@@ -193,7 +202,6 @@ paths:
                     next_page: null
                     total_pages: 1
                     total_count: 1
-
   "/send/send_limits/":
     get:
       operationId: send_limits_index
@@ -261,10 +269,10 @@ paths:
     post:
       operationId: send_limits_create
       description: |
-        This to increase your CHIP Send Limit by converting upcoming settlement amount. Once triggered, all approvers will receive an email to approve the conversion.
+        This to increase your CHIP Send Budget Allocation by converting upcoming settlement amount. Once triggered, all approvers will receive an email to approve the budget allocation.
 
-        Please note that all Send LImit increase requests must be approved before 12AM everyday. At 12AM, pending requests will set as expired.
-      summary: Increase Send Limit
+        Please note that all CHIP Send Budget Allocation requests must be approved before 12PM MYT the next day. At 12PM MYT (next day), all pending requests will set as expired.
+      summary: Increase CHIP Send Budget Allocation
       tags:
         - Send Limits
       security:
@@ -315,7 +323,7 @@ paths:
     get:
       operationId: bank_accounts_index
       description: |
-        This is to get list of bank accounts.
+        This is to get list of recipients bank accounts.
 
       summary: Get Bank Accounts
       tags:
@@ -437,7 +445,7 @@ paths:
       operationId: bank_accounts_create
       description: |
         The ID given in the respone must be stored as it will be used for later process.
-      summary: Add Bank Account
+      summary: Add Recipient Bank Account
       tags:
         - Bank Accounts
       parameters:
@@ -485,13 +493,12 @@ paths:
                 is_crediting_account: false
                 updated_at: '2023-07-20T08:59:10.766Z'
                 deleted_at: null
-                rejection_reason: null
-                
+                rejection_reason: null          
   "/send/bank_accounts/{id}/":
     get:
       operationId: bank_accounts_get
       description: |
-        This is for getting a specific bank account details.
+        This is for getting a specific recipient bank account details.
       summary: Get Bank Account By ID
       tags:
         - Bank Accounts
@@ -751,7 +758,7 @@ paths:
           content:
             application/json:
               example:
-                message: "Balance not enough. Please increase your Send Limit"
+                message: "Balance not enough. Please increase your CHIP Send Budget Allocation"
         '404':
           description: Resource not found
           content:
